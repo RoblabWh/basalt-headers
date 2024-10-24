@@ -57,13 +57,7 @@ struct Calibration {
   Calibration() {
     cam_time_offset_ns = 0;
 
-    imu_update_rate = 200;
-
-    // reasonable defaults
-    gyro_noise_std.setConstant(0.000282);
-    accel_noise_std.setConstant(0.016);
-    accel_bias_std.setConstant(0.001);
-    gyro_bias_std.setConstant(0.0001);
+    imu_update_rate = 0;
   }
 
   /// @brief Cast to other scalar type
