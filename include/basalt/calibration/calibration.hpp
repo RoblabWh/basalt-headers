@@ -112,6 +112,13 @@ struct Calibration {
   /// parameter.
   std::vector<basalt::RdSpline<1, 4, Scalar>> vignette;
 
+  /// @brief Vector representing the inverse response function for
+  /// each camera.
+  ///
+  /// Each value represents the correcred irradiance, with uncorrected
+  /// irradiance as index.
+  Eigen::aligned_vector<Eigen::Vector<Scalar, 256>> response;
+
   /// @brief Time offset between cameras and IMU in nanoseconds.
   ///
   /// With raw image timestamp \f$ t_r \f$ and this offset \f$ o \f$ we cam get
