@@ -52,6 +52,8 @@ struct Calibration {
   using Ptr = std::shared_ptr<Calibration>;
   using SE3 = Sophus::SE3<Scalar>;
   using Vec3 = Eigen::Matrix<Scalar, 3, 1>;
+  using MatXX =
+      Eigen::Matrix<Scalar, Eigen::Dynamic, Eigen::Dynamic, Eigen::RowMajor>;
 
   /// @brief Default constructor.
   Calibration() {
@@ -159,6 +161,30 @@ struct Calibration {
   /// rate.
   inline Vec3 dicrete_time_accel_noise_std() const {
     return accel_noise_std * std::sqrt(imu_update_rate);
+  }
+
+  /// @brief Create vignette maps
+  ///
+  /// Evaluates the vignette splines and creates image-like vignette maps.
+  Eigen::aligned_vector<MatXX> vignette_maps(
+      const Scalar threshold = 0.5) const {
+    Eigen::aligned_vector<MatXX> maps(resolution.size());
+    for (size_t k = 0; k < maps.size(); ++k) {
+      maps[k].setZero(resolution[k][0], resolution[k][1]);
+
+      const Eigen::Vector2<Scalar> oc =
+          intrinsics[k].getParam().template segment<2>(2);
+
+      for (size_t x = 0; x < resolution[k][0]; x++) {
+        for (size_t y = 0; y < resolution[k][1]; y++) {
+          const int64_t loc = (Eigen::Vector2<Scalar>(x, y) - oc).norm() * 1e9;
+          const double val = vignette[k].evaluate(loc)[0];
+          if (val < threshold) continue;
+          maps[k](x, y) = val > 1.0 ? 1.0 : val;
+        }
+      }
+    }
+    return maps;
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
