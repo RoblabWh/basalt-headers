@@ -119,7 +119,7 @@ struct Calibration {
   ///
   /// Each value represents the correcred irradiance, with uncorrected
   /// irradiance as index.
-  Eigen::aligned_vector<Eigen::Vector<Scalar, 256>> response;
+  Eigen::aligned_vector<Eigen::VectorX<Scalar>> response;
 
   /// @brief Time offset between cameras and IMU in nanoseconds.
   ///
