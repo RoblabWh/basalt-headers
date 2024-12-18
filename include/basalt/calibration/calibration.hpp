@@ -170,17 +170,17 @@ struct Calibration {
       const Scalar threshold = 0.5) const {
     Eigen::aligned_vector<MatXX> maps(resolution.size());
     for (size_t k = 0; k < maps.size(); ++k) {
-      maps[k].setZero(resolution[k][0], resolution[k][1]);
+      maps[k].setZero(resolution[k][1], resolution[k][0]);
 
       const Eigen::Vector2<Scalar> oc =
           intrinsics[k].getParam().template segment<2>(2);
 
-      for (size_t x = 0; x < resolution[k][0]; x++) {
-        for (size_t y = 0; y < resolution[k][1]; y++) {
+      for (size_t y = 0; y < resolution[k][1]; y++) {
+        for (size_t x = 0; x < resolution[k][0]; x++) {
           const int64_t loc = (Eigen::Vector2<Scalar>(x, y) - oc).norm() * 1e9;
           const double val = vignette[k].evaluate(loc)[0];
           if (val < threshold) continue;
-          maps[k](x, y) = val > 1.0 ? 1.0 : val;
+          maps[k](y, x) = val > 1.0 ? 1.0 : val;
         }
       }
     }
