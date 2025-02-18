@@ -165,26 +165,41 @@ struct Calibration {
     return accel_noise_std * std::sqrt(imu_update_rate);
   }
 
+  /// @brief Create vignette map for a single camera
+  ///
+  /// Evaluates the vignette spline and creates image-like vignette map.
+  template <bool inv = true>
+  MatXX vignette_map(const uint8_t cam_idx = 0,
+                     const Scalar threshold = 0.5) const {
+    MatXX vign_map;
+    vign_map.setZero(resolution[cam_idx][1], resolution[cam_idx][0]);
+
+    const Eigen::Vector2<Scalar> oc =
+        intrinsics[cam_idx].getParam().template segment<2>(2);
+
+    for (int y = 0; y < resolution[cam_idx][1]; y++) {
+      for (int x = 0; x < resolution[cam_idx][0]; x++) {
+        const int64_t loc = (Eigen::Vector2<Scalar>(x, y) - oc).norm() * 1e9;
+        const double val = vignette[cam_idx].evaluate(loc)[0];
+        if (val < threshold) continue;
+        if constexpr (inv)
+          vign_map(y, x) = val > 1.0 ? 1.0 : 1.0 / val;
+        else
+          vign_map(y, x) = val > 1.0 ? 1.0 : val;
+      }
+    }
+    return vign_map;
+  }
+
   /// @brief Create vignette maps
   ///
   /// Evaluates the vignette splines and creates image-like vignette maps.
+  template <bool inv = true>
   Eigen::aligned_vector<MatXX> vignette_maps(
       const Scalar threshold = 0.5) const {
     Eigen::aligned_vector<MatXX> maps(resolution.size());
     for (size_t k = 0; k < maps.size(); ++k) {
-      maps[k].setZero(resolution[k][1], resolution[k][0]);
-
-      const Eigen::Vector2<Scalar> oc =
-          intrinsics[k].getParam().template segment<2>(2);
-
-      for (size_t y = 0; y < resolution[k][1]; y++) {
-        for (size_t x = 0; x < resolution[k][0]; x++) {
-          const int64_t loc = (Eigen::Vector2<Scalar>(x, y) - oc).norm() * 1e9;
-          const double val = vignette[k].evaluate(loc)[0];
-          if (val < threshold) continue;
-          maps[k](y, x) = val > 1.0 ? 1.0 : val;
-        }
-      }
+      maps[k] = vignette_map<inv>(k, threshold);
     }
     return maps;
   }
