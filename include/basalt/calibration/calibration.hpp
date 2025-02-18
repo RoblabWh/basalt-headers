@@ -73,6 +73,8 @@ struct Calibration {
       new_cam.intrinsics.emplace_back(v.template cast<Scalar2>());
     for (const auto& v : vignette)
       new_cam.vignette.emplace_back(v.template cast<Scalar2>());
+    for (const auto& v : response)
+      new_cam.response.emplace_back(v.template cast<Scalar2>());
 
     new_cam.resolution = resolution;
     new_cam.cam_time_offset_ns = cam_time_offset_ns;
