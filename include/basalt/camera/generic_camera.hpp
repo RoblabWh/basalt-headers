@@ -337,11 +337,14 @@ class GenericCamera {
   /// @brief Construct a particular type of camera model from name
   static GenericCamera<Scalar> fromString(const std::string& name) {
     GenericCamera<Scalar> res;
-
-    constexpr size_t VARIANT_SIZE = std::variant_size<VariantT>::value;
-    visitAllTypes<VARIANT_SIZE - 1>(res, name);
-
+    visitAllTypes(res, name);
     return res;
+  }
+
+  /// @brief Checks if name is a valid camera model
+  static bool isValidType(const std::string& name) {
+    GenericCamera<Scalar> res;
+    return visitAllTypes(res, name);
   }
 
   VariantT variant;
@@ -349,17 +352,19 @@ class GenericCamera {
  private:
   /// @brief Iterate over all possible types of the variant and construct that
   /// type that has a matching name
-  template <int I>
-  static void visitAllTypes(GenericCamera<Scalar>& res,
+  template <std::size_t I = 0>
+  static bool visitAllTypes(GenericCamera<Scalar>& res,
                             const std::string& name) {
-    if constexpr (I >= 0) {
+    if constexpr (I < std::variant_size<VariantT>::value) {
       using cam_t = typename std::variant_alternative<I, VariantT>::type;
       if (cam_t::getName() == name) {
         cam_t val;
         res.variant = val;
+        return true;
       }
-      visitAllTypes<I - 1>(res, name);
+      return visitAllTypes<I + 1>(res, name);
     }
+    return false;
   }
 };
 }  // namespace basalt
