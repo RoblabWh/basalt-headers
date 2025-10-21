@@ -186,8 +186,8 @@ void load(Archive& archive,
   }
 }
 
-template <class Archive>
-void serialize(Archive& ar, Sophus::SE3d& p) {
+template <class Archive, class _Scalar>
+void serialize(Archive& ar, Sophus::SE3<_Scalar>& p) {
   ar(cereal::make_nvp("px", p.translation()[0]),
      cereal::make_nvp("py", p.translation()[1]),
      cereal::make_nvp("pz", p.translation()[2]),
@@ -197,8 +197,8 @@ void serialize(Archive& ar, Sophus::SE3d& p) {
      cereal::make_nvp("qw", p.so3().data()[3]));
 }
 
-template <class Archive>
-void serialize(Archive& ar, Sophus::Sim3d& p) {
+template <class Archive, class _Scalar>
+void serialize(Archive& ar, Sophus::Sim3<_Scalar>& p) {
   ar(cereal::make_nvp("px", p.translation()[0]),
      cereal::make_nvp("py", p.translation()[1]),
      cereal::make_nvp("pz", p.translation()[2]),
