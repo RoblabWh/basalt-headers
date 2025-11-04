@@ -198,10 +198,14 @@ struct Calibration {
   Eigen::aligned_vector<MatXX> vignette_maps(
       const Scalar threshold = 0.5) const {
     Eigen::aligned_vector<MatXX> maps(resolution.size());
-    for (size_t k = 0; k < maps.size(); ++k) {
+    for (std::size_t k = 0; k < maps.size(); ++k) {
       maps[k] = vignette_map<inv>(k, threshold);
     }
     return maps;
+  }
+
+  constexpr std::size_t num_cams() const {
+    return this->intrinsics.size();
   }
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
