@@ -39,6 +39,12 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #pragma once
 
+// MSVC compatibility for M_PI
+#include <cmath>
+#ifndef M_PI
+  #define M_PI 3.14159265358979323846
+#endif
+
 #include <sophus/se3.hpp>
 #include <sophus/sim3.hpp>
 
