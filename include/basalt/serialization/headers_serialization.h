@@ -273,7 +273,7 @@ inline void load(Archive& ar, basalt::RdSpline<DIM, ORDER, Scalar>& spline) {
 }
 
 template <class Archive, class Scalar>
-inline void serialize(Archive& ar, basalt::Calibration<Scalar>& cam) {
+inline void save(Archive& ar, const basalt::Calibration<Scalar>& cam) {
   ar(cereal::make_nvp("T_imu_cam", cam.T_i_c),
      cereal::make_nvp("intrinsics", cam.intrinsics),
      cereal::make_nvp("resolution", cam.resolution),
@@ -287,6 +287,31 @@ inline void serialize(Archive& ar, basalt::Calibration<Scalar>& cam) {
      cereal::make_nvp("cam_time_offset_ns", cam.cam_time_offset_ns),
      cereal::make_nvp("response", cam.response),
      cereal::make_nvp("vignette", cam.vignette));
+}
+
+template <class Archive, class Scalar>
+inline void load(Archive& ar, basalt::Calibration<Scalar>& cam) {
+  ar(cereal::make_nvp("T_imu_cam", cam.T_i_c),
+     cereal::make_nvp("intrinsics", cam.intrinsics),
+     cereal::make_nvp("resolution", cam.resolution),
+     cereal::make_nvp("calib_accel_bias", cam.calib_accel_bias.getParam()),
+     cereal::make_nvp("calib_gyro_bias", cam.calib_gyro_bias.getParam()),
+     cereal::make_nvp("imu_update_rate", cam.imu_update_rate),
+     cereal::make_nvp("accel_noise_std", cam.accel_noise_std),
+     cereal::make_nvp("gyro_noise_std", cam.gyro_noise_std),
+     cereal::make_nvp("accel_bias_std", cam.accel_bias_std),
+     cereal::make_nvp("gyro_bias_std", cam.gyro_bias_std),
+     cereal::make_nvp("cam_time_offset_ns", cam.cam_time_offset_ns));
+
+  try {
+    ar(cereal::make_nvp("response", cam.response));
+  } catch (const cereal::Exception&) {
+    // calibration file from an older version without response calibration
+    cam.response.clear();
+    ar.setNextName(nullptr);
+  }
+
+  ar(cereal::make_nvp("vignette", cam.vignette));
 }
 
 template <class Archive, class Scalar>
