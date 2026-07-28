@@ -39,6 +39,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #pragma once
 
 #include <memory>
+#include <string>
 
 #include <basalt/spline/rd_spline.h>
 #include <basalt/calibration/calib_bias.hpp>
@@ -77,6 +78,8 @@ struct Calibration {
       new_cam.response.emplace_back(v.template cast<Scalar2>());
 
     new_cam.resolution = resolution;
+    new_cam.cam_names = cam_names;
+    new_cam.imu_name = imu_name;
     new_cam.cam_time_offset_ns = cam_time_offset_ns;
 
     new_cam.calib_accel_bias.getParam() =
@@ -108,6 +111,11 @@ struct Calibration {
   /// @brief Camera resolutions.
   Eigen::aligned_vector<Eigen::Vector2i> resolution;
 
+  /// @brief Optional per-camera sensor names (topics / folders).
+  ///
+  /// Empty for calibrations that were not produced from a dataset.
+  std::vector<std::string> cam_names;
+
   /// @brief Vector of splines representing radially symmetric vignetting for
   /// each of the camera.
   ///
@@ -137,6 +145,9 @@ struct Calibration {
 
   /// @brief IMU update rate.
   Scalar imu_update_rate;
+
+  /// @brief Optional name of the IMU this calibration refers to. May be empty.
+  std::string imu_name;
 
   /// @brief Continuous time gyroscope noise standard deviation.
   Vec3 gyro_noise_std;
