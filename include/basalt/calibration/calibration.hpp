@@ -79,6 +79,7 @@ struct Calibration {
 
     new_cam.resolution = resolution;
     new_cam.cam_names = cam_names;
+    new_cam.overlaps = overlaps;
     new_cam.imu_name = imu_name;
     new_cam.cam_time_offset_ns = cam_time_offset_ns;
 
@@ -115,6 +116,10 @@ struct Calibration {
   ///
   /// Empty for calibrations that were not produced from a dataset.
   std::vector<std::string> cam_names;
+
+  /// @brief Optional per-camera indices of cameras with overlapping field of
+  /// view.
+  std::vector<std::vector<size_t>> overlaps;
 
   /// @brief Vector of splines representing radially symmetric vignetting for
   /// each of the camera.

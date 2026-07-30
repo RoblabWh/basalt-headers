@@ -288,7 +288,8 @@ inline void save(Archive& ar, const basalt::Calibration<Scalar>& cam) {
      cereal::make_nvp("response", cam.response),
      cereal::make_nvp("vignette", cam.vignette),
      cereal::make_nvp("cam_names", cam.cam_names),
-     cereal::make_nvp("imu_name", cam.imu_name));
+     cereal::make_nvp("imu_name", cam.imu_name),
+     cereal::make_nvp("overlaps", cam.overlaps));
 }
 
 template <class Archive, class Scalar>
@@ -325,6 +326,13 @@ inline void load(Archive& ar, basalt::Calibration<Scalar>& cam) {
     ar(cereal::make_nvp("imu_name", cam.imu_name));
   } catch (const cereal::Exception&) {
     cam.imu_name.clear();
+    ar.setNextName(nullptr);
+  }
+
+  try {
+    ar(cereal::make_nvp("overlaps", cam.overlaps));
+  } catch (const cereal::Exception&) {
+    cam.overlaps.clear();
     ar.setNextName(nullptr);
   }
 }
