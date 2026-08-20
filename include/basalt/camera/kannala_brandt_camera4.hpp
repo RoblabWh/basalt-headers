@@ -77,13 +77,19 @@ class KannalaBrandtCamera4 {
   using Mat4N = Eigen::Matrix<Scalar, 4, N>;
 
   /// @brief Default constructor with zero intrinsics
-  KannalaBrandtCamera4() { param_.setZero(); }
+  KannalaBrandtCamera4() {
+    param_.setZero();
+    theta_max_ = Sophus::Constants<Scalar>::pi();
+  }
 
   /// @brief Construct camera model with given vector of intrinsics
   ///
   /// @param[in] p vector of intrinsic parameters [fx, fy, cx, cy, k1, k2, k3,
   /// k4]
-  explicit KannalaBrandtCamera4(const VecN& p) { param_ = p; }
+  explicit KannalaBrandtCamera4(const VecN& p) {
+    param_ = p;
+    theta_max_ = computeThetaMax();
+  }
 
   /// @brief Camera model name
   ///
@@ -140,10 +146,6 @@ class KannalaBrandtCamera4 {
     const Scalar& fy = param_[1];
     const Scalar& cx = param_[2];
     const Scalar& cy = param_[3];
-    const Scalar& k1 = param_[4];
-    const Scalar& k2 = param_[5];
-    const Scalar& k3 = param_[6];
-    const Scalar& k4 = param_[7];
 
     const Scalar& x = p3d_eval[0];
     const Scalar& y = p3d_eval[1];
@@ -156,16 +158,10 @@ class KannalaBrandtCamera4 {
     if (r > Sophus::Constants<Scalar>::epsilonSqrt()) {
       const Scalar theta = atan2(r, z);
       const Scalar theta2 = theta * theta;
+      const Scalar r_theta = rTheta(theta);
 
-      Scalar r_theta = k4 * theta2;
-      r_theta += k3;
-      r_theta *= theta2;
-      r_theta += k2;
-      r_theta *= theta2;
-      r_theta += k1;
-      r_theta *= theta2;
-      r_theta += 1;
-      r_theta *= theta;
+      // Outside the injective domain d(theta) folds back into the image.
+      is_valid = theta <= theta_max_;
 
       const Scalar mx = x * r_theta / r;
       const Scalar my = y * r_theta / r;
@@ -183,14 +179,7 @@ class KannalaBrandtCamera4 {
         const Scalar d_theta_d_y = d_r_d_y * z / tmp;
         const Scalar d_theta_d_z = -r / tmp;
 
-        Scalar d_r_theta_d_theta = Scalar(9) * k4 * theta2;
-        d_r_theta_d_theta += Scalar(7) * k3;
-        d_r_theta_d_theta *= theta2;
-        d_r_theta_d_theta += Scalar(5) * k2;
-        d_r_theta_d_theta *= theta2;
-        d_r_theta_d_theta += Scalar(3) * k1;
-        d_r_theta_d_theta *= theta2;
-        d_r_theta_d_theta += Scalar(1);
+        const Scalar d_r_theta_d_theta = rThetaDerivative(theta);
 
         d_proj_d_p3d->setZero();
 
@@ -291,36 +280,12 @@ class KannalaBrandtCamera4 {
   template <int ITER>
   inline Scalar solveTheta(const Scalar& r_theta,
                            Scalar& d_func_d_theta) const {
-    const Scalar& k1 = param_[4];
-    const Scalar& k2 = param_[5];
-    const Scalar& k3 = param_[6];
-    const Scalar& k4 = param_[7];
-
     Scalar theta = r_theta;
     for (int i = ITER; i > 0; i--) {
-      Scalar theta2 = theta * theta;
-
-      Scalar func = k4 * theta2;
-      func += k3;
-      func *= theta2;
-      func += k2;
-      func *= theta2;
-      func += k1;
-      func *= theta2;
-      func += Scalar(1);
-      func *= theta;
-
-      d_func_d_theta = Scalar(9) * k4 * theta2;
-      d_func_d_theta += Scalar(7) * k3;
-      d_func_d_theta *= theta2;
-      d_func_d_theta += Scalar(5) * k2;
-      d_func_d_theta *= theta2;
-      d_func_d_theta += Scalar(3) * k1;
-      d_func_d_theta *= theta2;
-      d_func_d_theta += Scalar(1);
+      d_func_d_theta = rThetaDerivative(theta);
 
       // Iteration of Newton method
-      theta += (r_theta - func) / d_func_d_theta;
+      theta += (r_theta - rTheta(theta)) / d_func_d_theta;
     }
 
     return theta;
@@ -377,6 +342,10 @@ class KannalaBrandtCamera4 {
     Scalar thetad = sqrt(mx * mx + my * my);
     Scalar scaling(1);
     Scalar d_func_d_theta(0);
+
+    // Beyond d(theta_max_) there is no theta that projects here, and Newton's
+    // method in solveTheta does not converge.
+    bool is_valid = thetad <= rTheta(theta_max_);
 
     if (thetad > Sophus::Constants<Scalar>::epsilonSqrt()) {
       theta = solveTheta<3>(thetad, d_func_d_theta);
@@ -479,13 +448,16 @@ class KannalaBrandtCamera4 {
       UNUSED(d_p3d_d_param);
     }
 
-    return true;
+    return is_valid;
   }
 
   /// @brief Increment intrinsic parameters by inc
   ///
   /// @param[in] inc increment vector
-  void operator+=(const VecN& inc) { param_ += inc; }
+  void operator+=(const VecN& inc) {
+    param_ += inc;
+    theta_max_ = computeThetaMax();
+  }
 
   /// @brief Returns a const reference to the intrinsic parameters vector
   ///
@@ -509,6 +481,7 @@ class KannalaBrandtCamera4 {
     param_[5] = 0;
     param_[6] = 0;
     param_[7] = 0;
+    theta_max_ = Sophus::Constants<Scalar>::pi();
   }
 
   /// @brief Projections used for unit-tests
@@ -525,7 +498,83 @@ class KannalaBrandtCamera4 {
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
  private:
+  /// @brief Computes the largest \f$ \theta \f$ for which \f$ d(\theta) \f$ is
+  /// still injective, by scanning \f$ (0, \pi] \f$ for the first sign change
+  /// of \f$ d'(\theta) \f$ and bisecting it.
+  ///
+  /// @return that root, or \f$ \pi \f$ if \f$ d'(\theta) \f$ never turns
+  Scalar computeThetaMax() const {
+    const int STEPS{1024};  // Resolution of the initial sign change scan
+    const int ITERS{32};    // Bisection iterations refining the root
+
+    // The returned lower end of the bracket always has d'(theta) >= 0.
+    Scalar low(0);
+    Scalar high = Sophus::Constants<Scalar>::pi();
+    for (int i = 1; i <= STEPS; i++) {
+      high = Sophus::Constants<Scalar>::pi() * Scalar(i) / Scalar(STEPS);
+      if (rThetaDerivative(high) < Scalar(0)) {
+        break;
+      }
+      low = high;
+    }
+
+    // No sign change: the last scan step left low == high == pi
+    if (low == high) {
+      return high;
+    }
+
+    for (int i = 0; i < ITERS; i++) {
+      const Scalar mid = (low + high) / Scalar(2);
+      if (rThetaDerivative(mid) < Scalar(0)) {
+        high = mid;
+      } else {
+        low = mid;
+      }
+    }
+
+    return low;
+  }
+
+  /// @brief Evaluates the distortion polynomial \f$ d(\theta) \f$
+  ///
+  /// @param[in] theta angle between the point and the optical axis
+  /// @return \f$ \theta + k_1 \theta^3 + k_2 \theta^5 + k_3 \theta^7 + k_4
+  /// \theta^9 \f$
+  inline Scalar rTheta(const Scalar& theta) const {
+    const Scalar& k1 = param_[4];
+    const Scalar& k2 = param_[5];
+    const Scalar& k3 = param_[6];
+    const Scalar& k4 = param_[7];
+
+    const Scalar theta2 = theta * theta;
+    return theta *
+           (Scalar(1) +
+            theta2 * (k1 + theta2 * (k2 + theta2 * (k3 + theta2 * k4))));
+  }
+
+  /// @brief Evaluates the derivative of the distortion polynomial
+  ///
+  /// @param[in] theta angle between the point and the optical axis
+  /// @return \f$ d'(\theta) \f$
+  inline Scalar rThetaDerivative(const Scalar& theta) const {
+    const Scalar& k1 = param_[4];
+    const Scalar& k2 = param_[5];
+    const Scalar& k3 = param_[6];
+    const Scalar& k4 = param_[7];
+
+    const Scalar theta2 = theta * theta;
+    return Scalar(1) +
+           theta2 *
+               (Scalar(3) * k1 +
+                theta2 * (Scalar(5) * k2 +
+                          theta2 * (Scalar(7) * k3 + theta2 * Scalar(9) * k4)));
+  }
+
   VecN param_;
+
+  /// Largest angle from the optical axis for which the projection is still
+  /// injective.
+  Scalar theta_max_;
 };
 
 }  // namespace basalt
